@@ -10,11 +10,7 @@ from layers import Global_MP, Local_MP
 from utils import BesselBasisLayer, SphericalBasisLayer, MLP
 
 class Config(object):
-    def __init__(self,
-                dim,
-                n_layer,
-                cutoff):
-
+    def __init__(self, dim, n_layer, cutoff):
         self.dim = dim
         self.n_layer = n_layer
         self.cutoff = cutoff
@@ -29,9 +25,9 @@ class MXMNet(nn.Module):
 
         self.embeddings = nn.Parameter(torch.ones((5, self.dim)))
 
-        self.rbf_l = BesselBasisLayer(16, 3.6179, envelope_exponent)
+        self.rbf_l = BesselBasisLayer(16, 5, envelope_exponent)
         self.rbf_g = BesselBasisLayer(16, self.cutoff, envelope_exponent)
-        self.sbf = SphericalBasisLayer(num_spherical, num_radial, 3.6179, envelope_exponent)
+        self.sbf = SphericalBasisLayer(num_spherical, num_radial, 5, envelope_exponent)
 
         self.rbf_g_mlp = MLP([16, self.dim])
         self.rbf_l_mlp = MLP([16, self.dim])
@@ -87,22 +83,18 @@ class MXMNet(nn.Module):
         return idx_i_1, idx_j, idx_k, idx_kj, idx_ji_1, idx_i_2, idx_j1, idx_j2, idx_jj, idx_ji_2
 
 
-    def forward(self, x, edge_index, batch):
-        x = x.unsqueeze(-1) if x.dim() == 1 else x
+    def forward(self, data):
+        x = data.x
+        edge_index = data.edge_index
+        pos = data.pos
+        batch = data.batch
         # Initialize node embeddings
-        h = torch.index_select(self.embeddings, 0, x[:,-1].long())
-        # Get the 3D positions of atoms
-        pos = x[:,:3].contiguous()
+        h = torch.index_select(self.embeddings, 0, x.long())
 
         # Get the edges and pairwise distances in the local layer
         edge_index_l, _ = remove_self_loops(edge_index)
         j_l, i_l = edge_index_l
         dist_l = (pos[i_l] - pos[j_l]).pow(2).sum(dim=-1).sqrt()
-
-
-        ''' In the future version, the geometric information in the global layer 
-            will be preprocessed before the training to save time
-        '''
         
         # Get the edges pairwise distances in the global layer
         row, col = radius(pos, pos, self.cutoff, batch, batch, max_num_neighbors=500)

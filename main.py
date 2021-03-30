@@ -14,7 +14,8 @@ from torch_geometric.data import DataLoader
 from warmup_scheduler import GradualWarmupScheduler
 
 from model import MXMNet, Config
-from utils import EMA, TUDataset
+from utils import EMA
+from qm9_dataset import QM9
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=0, help='GPU number.')
@@ -43,13 +44,11 @@ def set_seed(seed):
     random.seed(seed)
 
 target = args.target
+if target in [7, 8, 9, 10]:
+    target = target + 5
 set_seed(args.seed)
 
 targets = ['mu (D)', 'a (a^3_0)', 'e_HOMO (eV)', 'e_LUMO (eV)', 'delta e (eV)', 'R^2 (a^2_0)', 'ZPVE (eV)', 'U_0 (eV)', 'U (eV)', 'H (eV)', 'G (eV)', 'c_v (cal/mol.K)', ]
-scale = 1.0
-#Change the unit from meV to eV for energy-related targets
-if target in [2, 3, 4, 6, 7, 8, 9, 10]:
-    scale = 1000.0
 
 def test(loader):
     error = 0
@@ -57,30 +56,32 @@ def test(loader):
 
     for data in loader:
         data = data.to(device)
-        output = model(data.x, data.edge_index, data.batch)
+        output = model(data)
         error += (output - data.y).abs().sum().item()
     ema.resume(model)
     return error / len(loader.dataset)
 
 class MyTransform(object):
     def __call__(self, data):
-        data.y = data.y[:, target] / scale
+        data.y = data.y[:, target]
         return data
 
-# Load dataset
-path = osp.join('.', 'data')
-dataset = TUDataset(path, name=args.dataset, transform=MyTransform(), use_node_attr=True, use_edge_attr=True).shuffle()
+#Download and preprocess dataset
+path = osp.join(osp.dirname(osp.realpath(__file__)), '.', 'data', 'QM9')
+dataset = QM9(path, transform=MyTransform()).shuffle()
+print('# of graphs:', len(dataset))
 
 # Split dataset
 train_dataset = dataset[:110000]
 val_dataset = dataset[110000:120000]
 test_dataset = dataset[120000:]
 
+#Load dataset
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, worker_init_fn=args.seed)
 test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
-print('Loaded the QM9 dataset. Target property: ', targets[target])
+print('Loaded the QM9 dataset. Target property: ', targets[args.target])
 
 # Load model
 config = Config(dim=args.dim, n_layer=args.n_layer, cutoff=args.cutoff)
@@ -111,7 +112,7 @@ for epoch in range(args.epochs):
 
         optimizer.zero_grad()
 
-        output = model(data.x, data.edge_index, data.batch)
+        output = model(data)
         loss = F.l1_loss(output, data.y)
         loss_all += loss.item() * data.num_graphs
         loss.backward()
