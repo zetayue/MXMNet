@@ -1,5 +1,6 @@
-numpy==1.17.2
-scikit-learn==0.21.3
+rdkit-pypi==2021.3.1
+numpy==1.20.0
+scikit-learn==0.24.1
 scipy==1.3.1
 sympy==1.6
 torch==1.4.0

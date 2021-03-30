@@ -13,15 +13,12 @@ from torch_geometric.utils import remove_self_loops, add_self_loops, sort_edge_i
 
 from utils import BesselBasisLayer, SphericalBasisLayer
 
-try:
-    import rdkit
-    from rdkit import Chem
-    from rdkit.Chem.rdchem import HybridizationType
-    from rdkit.Chem.rdchem import BondType as BT
-    from rdkit import RDLogger
-    RDLogger.DisableLog('rdApp.*')
-except ImportError:
-    rdkit = None
+import rdkit
+from rdkit import Chem
+from rdkit.Chem.rdchem import HybridizationType
+from rdkit.Chem.rdchem import BondType as BT
+from rdkit import RDLogger
+RDLogger.DisableLog('rdApp.*')
 
 HAR2EV = 27.2113825435
 KCALMOL2EV = 0.04336414
@@ -51,38 +48,6 @@ atomrefs = {
     ],
     11: [0., 0., 0., 0., 0.],
 }
-
-def indices(edge_index, num_nodes):
-    row, col = edge_index
-
-    value = torch.arange(row.size(0), device=row.device)
-    adj_t = SparseTensor(row=col, col=row, value=value,
-                            sparse_sizes=(num_nodes, num_nodes))
-    adj_t_row = adj_t[row]
-    num_triplets = adj_t_row.set_value(None).sum(dim=1).to(torch.long)
-
-    idx_i = col.repeat_interleave(num_triplets)
-    idx_j = row.repeat_interleave(num_triplets)
-    idx_k = adj_t_row.storage.col()
-    mask = idx_i != idx_k  # Remove i == k triplets.
-    idx_i, idx_j, idx_k = idx_i[mask], idx_j[mask], idx_k[mask]
-
-    idx_kj = adj_t_row.storage.value()[mask]
-    idx_ji = adj_t_row.storage.row()[mask]
-    adj_t_col = adj_t[col]
-
-    num_pairs = adj_t_col.set_value(None).sum(dim=1).to(torch.long)
-    idx_i_pair = row.repeat_interleave(num_pairs)
-    idx_j1_pair = col.repeat_interleave(num_pairs)
-    idx_j2_pair = adj_t_col.storage.col()
-
-    mask_j = idx_j1_pair != idx_j2_pair  # Remove j == j' triplets.
-    idx_i_pair, idx_j1_pair, idx_j2_pair = idx_i_pair[mask_j], idx_j1_pair[mask_j], idx_j2_pair[mask_j]
-
-    idx_ji_pair = adj_t_col.storage.row()[mask_j]
-    idx_jj_pair = adj_t_col.storage.value()[mask_j]
-
-    return idx_i, idx_j, idx_k, idx_kj, idx_ji, idx_i_pair, idx_j1_pair, idx_j2_pair, idx_jj_pair, idx_ji_pair
 
 
 class QM9(InMemoryDataset):
@@ -153,12 +118,10 @@ class QM9(InMemoryDataset):
     raw_url = ('https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/'
                'molnet_publish/qm9.zip')
     raw_url2 = 'https://ndownloader.figshare.com/files/3195404'
-    processed_url = 'https://pytorch-geometric.com/datasets/qm9_v2.zip'
 
-    if rdkit is not None:
-        types = {'H': 0, 'C': 1, 'N': 2, 'O': 3, 'F': 4}
-        symbols = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'F': 9}
-        bonds = {BT.SINGLE: 0, BT.DOUBLE: 1, BT.TRIPLE: 2, BT.AROMATIC: 3}
+    types = {'H': 0, 'C': 1, 'N': 2, 'O': 3, 'F': 4}
+    symbols = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'F': 9}
+    bonds = {BT.SINGLE: 0, BT.DOUBLE: 1, BT.TRIPLE: 2, BT.AROMATIC: 3}
 
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
         super(QM9, self).__init__(root, transform, pre_transform, pre_filter)
@@ -181,46 +144,22 @@ class QM9(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        if rdkit is None:
-            return 'qm9_v2.pt'
-        else:
-            return ['gdb9.sdf', 'gdb9.sdf.csv', 'uncharacterized.txt']
+        return ['gdb9.sdf', 'gdb9.sdf.csv', 'uncharacterized.txt']
 
     @property
     def processed_file_names(self):
         return 'data_v2.pt'
 
     def download(self):
-        if rdkit is None:
-            path = download_url(self.processed_url, self.raw_dir)
-            extract_zip(path, self.raw_dir)
-            os.unlink(path)
-        else:
-            file_path = download_url(self.raw_url, self.raw_dir)
-            extract_zip(file_path, self.raw_dir)
-            os.unlink(file_path)
+        file_path = download_url(self.raw_url, self.raw_dir)
+        extract_zip(file_path, self.raw_dir)
+        os.unlink(file_path)
 
-            file_path = download_url(self.raw_url2, self.raw_dir)
-            os.rename(osp.join(self.raw_dir, '3195404'),
-                      osp.join(self.raw_dir, 'uncharacterized.txt'))
+        file_path = download_url(self.raw_url2, self.raw_dir)
+        os.rename(osp.join(self.raw_dir, '3195404'),
+                  osp.join(self.raw_dir, 'uncharacterized.txt'))
 
     def process(self):
-        if rdkit is None:
-            print('Using a pre-processed version of the dataset. Please '
-                  'install `rdkit` to alternatively process the raw data.')
-
-            self.data, self.slices = torch.load(self.raw_paths[0])
-            data_list = [self.get(i) for i in range(len(self))]
-
-            if self.pre_filter is not None:
-                data_list = [d for d in data_list if self.pre_filter(d)]
-
-            if self.pre_transform is not None:
-                data_list = [self.pre_transform(d) for d in data_list]
-
-            torch.save(self.collate(data_list), self.processed_paths[0])
-            return
-
         with open(self.raw_paths[1], 'r') as f:
             target = f.read().split('\n')[1:-1]
             target = [[float(x) for x in line.split(',')[1:20]]

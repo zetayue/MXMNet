@@ -33,7 +33,8 @@ parser.add_argument('--cutoff', type=float, default=5.0, help='Distance cutoff u
 args = parser.parse_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-torch.cuda.set_device(args.gpu)
+if torch.cuda.is_available():
+    torch.cuda.set_device(args.gpu)
 
 def set_seed(seed):
     torch.backends.cudnn.deterministic = True
