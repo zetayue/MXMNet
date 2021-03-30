@@ -17,8 +17,7 @@ The other dependencies can be installed with:
 pip install -r requirements.txt
 ```
 ## How to Run
-The QM9 raw dataset is in the 'data' folder to be processed.
-You can directly process the data and train the model with 
+You can directly download, preprocess the QM9 dataset and train the model with 
 ```
 python main.py
 ```
@@ -37,5 +36,12 @@ Optional arguments:
 ```
 The default model to be trained is the MXMNet (BS=128, d_g=5) by using '--batch_size=128 --cutoff=5.0'.
 
-## Future version
-We will release a faster version by preprocessing the geometric information before the training. The current version computes the geometric information in each training iteration.
+## Cite
+If you find this model and code are useful in your work, please cite our paper:
+
+@inproceedings{zhang2020molecular,
+title = {Molecular Mechanics-Driven Graph Neural Network with Multiplex Graph for Molecular Structures},
+author = {Zhang, Shuo and Liu, Yang and Xie, Lei},
+booktitle={NeurIPS-W},
+year = {2020} }
+
