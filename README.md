@@ -10,7 +10,7 @@ Code for the Multiplex Molecular Graph Neural Network (MXMNet) proposed in our [
 
 ## Requirements
 CUDA : 10.1
-Python : 3.6.9
+Python : 3.7.10
 
 The other dependencies can be installed with:
 ```
