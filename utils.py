@@ -580,4 +580,4 @@ def load_ckp(checkpoint_fpath, model, optimizer, scheduler_warmup):
     # initialize valid_loss_min from checkpoint to valid_loss_min
     valid_loss_min = checkpoint['valid_loss_min']
     # return model, optimizer, epoch value, min validation loss 
-    return model, optimizer, checkpoint['epoch'], valid_loss_min.item(), scheduler_warmup
+    return model, optimizer, checkpoint['epoch'], valid_loss_min, scheduler_warmup
