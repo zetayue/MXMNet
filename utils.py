@@ -563,7 +563,7 @@ def save_ckp(state, is_best, checkpoint_path, best_model_path):
         shutil.copyfile(f_path, best_fpath)
 
 
-def load_ckp(checkpoint_fpath, model, optimizer):
+def load_ckp(checkpoint_fpath, model, optimizer, scheduler_warmup):
     """
     checkpoint_path: path to save checkpoint
     model: model that we want to load checkpoint parameters into       
@@ -575,7 +575,9 @@ def load_ckp(checkpoint_fpath, model, optimizer):
     model.load_state_dict(checkpoint['state_dict'])
     # initialize optimizer from checkpoint to optimizer
     optimizer.load_state_dict(checkpoint['optimizer'])
+    # iniialize scheduler
+    scheduler_warmup.load_state_dict(checkpoint['scheduler_warmup'])
     # initialize valid_loss_min from checkpoint to valid_loss_min
     valid_loss_min = checkpoint['valid_loss_min']
     # return model, optimizer, epoch value, min validation loss 
-    return model, optimizer, checkpoint['epoch'], valid_loss_min.item()
+    return model, optimizer, checkpoint['epoch'], valid_loss_min.item(), scheduler_warmup

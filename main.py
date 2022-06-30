@@ -100,7 +100,7 @@ scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9961697)
 scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=scheduler)
 
 if args.checkpoint_path:
-    model, optimizer, start_epoch, valid_loss_min = load_ckp(ckp_path, model, optimizer)
+    model, optimizer, start_epoch, valid_loss_min, scheduler_warmup = load_ckp(args.checkpoint_path, model, optimizer, scheduler_warmup)
     print("optimizer = ", optimizer)
     print("start_epoch = ", start_epoch)
     print("valid_loss_min = {:.6f}".format(valid_loss_min))
