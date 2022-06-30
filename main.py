@@ -14,7 +14,7 @@ from torch_geometric.data import DataLoader
 from warmup_scheduler import GradualWarmupScheduler
 
 from model import MXMNet, Config
-from utils import EMA
+from utils import EMA, save_ckp, load_ckp
 from qm9_dataset import QM9
 
 parser = argparse.ArgumentParser()
@@ -29,6 +29,8 @@ parser.add_argument('--dataset', type=str, default="QM9", help='Dataset')
 parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
 parser.add_argument('--target', type=int, default="7", help='Index of target (0~11) for prediction')
 parser.add_argument('--cutoff', type=float, default=5.0, help='Distance cutoff used in the global layer')
+parser.add_argument('--checkpoint_dir', type=str, default="checkpoint", help='Checkpoint directory')
+parser.add_argument('--checkpoint_path', type=str, default=None, help='Checkpoint path')
 
 args = parser.parse_args()
 
@@ -73,9 +75,12 @@ dataset = QM9(path, transform=MyTransform()).shuffle()
 print('# of graphs:', len(dataset))
 
 # Split dataset
-train_dataset = dataset[:110000]
-val_dataset = dataset[110000:120000]
-test_dataset = dataset[120000:]
+# train_dataset = dataset[:110000]
+# val_dataset = dataset[110000:120000]
+# test_dataset = dataset[120000:]
+train_dataset = dataset[:1000]
+val_dataset = dataset[1000:1100]
+test_dataset = dataset[1100:1200]
 
 #Load dataset
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, worker_init_fn=args.seed)
@@ -86,13 +91,19 @@ print('Loaded the QM9 dataset. Target property: ', targets[args.target])
 
 # Load model
 config = Config(dim=args.dim, n_layer=args.n_layer, cutoff=args.cutoff)
-
-model = MXMNet(config).to(device)
+model = MXMNet(config)
+model = model.to(device)
 print('Loaded the MXMNet.')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9961697)
 scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=scheduler)
+
+if args.checkpoint_path:
+    model, optimizer, start_epoch, valid_loss_min = load_ckp(ckp_path, model, optimizer)
+    print("optimizer = ", optimizer)
+    print("start_epoch = ", start_epoch)
+    print("valid_loss_min = {:.6f}".format(valid_loss_min))
 
 ema = EMA(model, decay=0.999)
 
@@ -129,14 +140,26 @@ for epoch in range(args.epochs):
     train_loss = loss_all / len(train_loader.dataset)
 
     val_loss = test(val_loader)
-
+    checkpoint = {
+            'epoch': epoch + 1,
+            'valid_loss_min': val_loss,
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'scheduler_warmup': scheduler_warmup.state_dict()
+        }
+    is_best = False
     if best_val_loss is None or val_loss <= best_val_loss:
         test_loss = test(test_loader)
         best_epoch = epoch
         best_val_loss = val_loss
+        is_best = True
+    if epoch % 5 == 0:
+        checkpoint_path = f'{args.checkpoint_dir}/{epoch}-train-{train_loss:.3f}-val-{val_loss:.3f}.cpt'
+        best_model_path = f'{args.checkpoint_dir}/best-epoch.cpt'
+        save_ckp(checkpoint, is_best, checkpoint_path, best_model_path)
 
-    print('Epoch: {:03d}, Train MAE: {:.7f}, Validation MAE: {:.7f}, '
-          'Test MAE: {:.7f}'.format(epoch+1, train_loss, val_loss, test_loss))
+    print('Epoch: {:03d}, LR: {:.07d}, Train MAE: {:.7f}, Validation MAE: {:.7f}, '
+          'Test MAE: {:.7f}'.format(epoch+1, scheduler_warmup.get_lr(), train_loss, val_loss, test_loss))
 
 print('===================================================================================')
 print('Best Epoch:', best_epoch)
