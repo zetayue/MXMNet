@@ -98,7 +98,7 @@ print('Loaded the MXMNet.')
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9961697)
 scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=scheduler)
-
+start_epoch = 0
 if args.checkpoint_path:
     model, optimizer, start_epoch, valid_loss_min, scheduler_warmup = load_ckp(args.checkpoint_path, model, optimizer, scheduler_warmup)
     print("optimizer = ", optimizer)
@@ -114,7 +114,7 @@ print('=========================================================================
 best_epoch = None
 best_val_loss = None
 
-for epoch in range(args.epochs):
+for epoch in range(start_epoch, args.epochs):
     loss_all = 0
     step = 0
     model.train()
