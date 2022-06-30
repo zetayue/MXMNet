@@ -150,10 +150,10 @@ for epoch in range(start_epoch, args.epochs):
         best_epoch = epoch
         best_val_loss = val_loss
         is_best = True
-    # if epoch % 5 == 0:
-    checkpoint_path = f'{args.checkpoint_dir}/target-{args.target}-{epoch}-train-{train_loss:.3f}-val-{val_loss:.3f}.cpt'
-    best_model_path = f'{args.checkpoint_dir}/target-{args.target}-best-epoch.cpt'
-    save_ckp(checkpoint, is_best, checkpoint_path, best_model_path)
+    if epoch % 5 == 0:
+        checkpoint_path = f'{args.checkpoint_dir}/target-{args.target}-{epoch}-train-{train_loss:.3f}-val-{val_loss:.3f}.cpt'
+        best_model_path = f'{args.checkpoint_dir}/target-{args.target}-best-epoch.cpt'
+        save_ckp(checkpoint, is_best, checkpoint_path, best_model_path)
 
     print('Epoch: {:03d}, LR: {:.07f}, Train MAE: {:.7f}, Validation MAE: {:.7f}, '
           'Test MAE: {:.7f}'.format(epoch+1, optimizer.param_groups[0]['lr'], train_loss, val_loss, test_loss))
@@ -161,3 +161,4 @@ for epoch in range(start_epoch, args.epochs):
 print('===================================================================================')
 print('Best Epoch:', best_epoch)
 print('Best Test MAE:', test_loss)
+
