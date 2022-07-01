@@ -75,12 +75,9 @@ dataset = QM9(path, transform=MyTransform()).shuffle()
 print('# of graphs:', len(dataset))
 
 # Split dataset
-# train_dataset = dataset[:110000]
-# val_dataset = dataset[110000:120000]
-# test_dataset = dataset[120000:]
-train_dataset = dataset[:1000]
-val_dataset = dataset[1000:1500]
-test_dataset = dataset[1500:2000]
+train_dataset = dataset[:110000]
+val_dataset = dataset[110000:120000]
+test_dataset = dataset[120000:]
 
 #Load dataset
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, worker_init_fn=args.seed)
@@ -158,10 +155,8 @@ for epoch in range(start_epoch, args.epochs):
         checkpoint_path = f'{args.checkpoint_dir}/target-{args.target}-{epoch+1}-train-{train_loss:.3f}-val-{val_loss:.3f}.cpt'
         best_model_path = f'{args.checkpoint_dir}/target-{args.target}-best-epoch.cpt'
         save_ckp(checkpoint, is_best, checkpoint_path, best_model_path)
-    
-    print(scheduler.get_last_lr())
-    print('Epoch: {:03d}, LR: {:.07f}, Train MAE: {:.7f}, Validation MAE: {:.7f}, '
-          'Test MAE: {:.7f}'.format(epoch+1, optimizer.param_groups[0]['lr'], train_loss, val_loss, test_loss))
+    print('Epoch: {:03d}, LR: {:.07f}, LLR: {:0.07f}, Train MAE: {:.7f}, Validation MAE: {:.7f}, '
+          'Test MAE: {:.7f}'.format(epoch+1, optimizer.param_groups[0]['lr'], scheduler.get_last_lr(), train_loss, val_loss, test_loss))
 
 print('===================================================================================')
 print('Best Epoch:', best_epoch)
