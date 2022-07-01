@@ -75,9 +75,12 @@ dataset = QM9(path, transform=MyTransform()).shuffle()
 print('# of graphs:', len(dataset))
 
 # Split dataset
-train_dataset = dataset[:110000]
-val_dataset = dataset[110000:120000]
-test_dataset = dataset[120000:]
+# train_dataset = dataset[:110000]
+# val_dataset = dataset[110000:120000]
+# test_dataset = dataset[120000:]
+train_dataset = dataset[:1000]
+val_dataset = dataset[1000:1500]
+test_dataset = dataset[1500:2000]
 
 #Load dataset
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, worker_init_fn=args.seed)
@@ -94,14 +97,15 @@ print('Loaded the MXMNet.')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9961697)
-scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=scheduler)
+
 start_epoch = 0
 if args.checkpoint_path:
-    model, optimizer, start_epoch, valid_loss_min, scheduler_warmup = load_ckp(args.checkpoint_path, model, optimizer, scheduler_warmup)
+    model, optimizer, start_epoch, valid_loss_min, scheduler = load_ckp(args.checkpoint_path, model, optimizer, scheduler)
     print("optimizer = ", optimizer)
     print("start_epoch = ", start_epoch)
     print("valid_loss_min = {:.6f}".format(valid_loss_min))
 
+scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=scheduler)
 ema = EMA(model, decay=0.999)
 
 print('===================================================================================')
@@ -142,8 +146,10 @@ for epoch in range(start_epoch, args.epochs):
             'valid_loss_min': val_loss,
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
-            'scheduler_warmup': scheduler_warmup.state_dict()
+            'scheduler': scheduler.state_dict()
         }
+    print(checkpoint['optimizer'])
+    print(checkpoint['scheduler'])
     is_best = False
     if best_val_loss is None or val_loss <= best_val_loss:
         test_loss = test(test_loader)
