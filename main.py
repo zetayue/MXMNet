@@ -148,19 +148,18 @@ for epoch in range(start_epoch, args.epochs):
             'optimizer': optimizer.state_dict(),
             'scheduler': scheduler.state_dict()
         }
-    print(checkpoint['optimizer'])
-    print(checkpoint['scheduler'])
     is_best = False
     if best_val_loss is None or val_loss <= best_val_loss:
         test_loss = test(test_loader)
         best_epoch = epoch
         best_val_loss = val_loss
         is_best = True
-    if epoch % 5 == 0:
-        checkpoint_path = f'{args.checkpoint_dir}/target-{args.target}-{epoch}-train-{train_loss:.3f}-val-{val_loss:.3f}.cpt'
+    if (epoch + 1) % 5 == 0:
+        checkpoint_path = f'{args.checkpoint_dir}/target-{args.target}-{epoch+1}-train-{train_loss:.3f}-val-{val_loss:.3f}.cpt'
         best_model_path = f'{args.checkpoint_dir}/target-{args.target}-best-epoch.cpt'
         save_ckp(checkpoint, is_best, checkpoint_path, best_model_path)
-
+    
+    print(scheduler.get_last_lr())
     print('Epoch: {:03d}, LR: {:.07f}, Train MAE: {:.7f}, Validation MAE: {:.7f}, '
           'Test MAE: {:.7f}'.format(epoch+1, optimizer.param_groups[0]['lr'], train_loss, val_loss, test_loss))
 
