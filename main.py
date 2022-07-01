@@ -156,7 +156,7 @@ for epoch in range(start_epoch, args.epochs):
         best_model_path = f'{args.checkpoint_dir}/target-{args.target}-best-epoch.cpt'
         save_ckp(checkpoint, is_best, checkpoint_path, best_model_path)
     print('Epoch: {:03d}, LR: {:.07f}, LLR: {:0.07f}, Train MAE: {:.7f}, Validation MAE: {:.7f}, '
-          'Test MAE: {:.7f}'.format(epoch+1, optimizer.param_groups[0]['lr'], scheduler.get_last_lr(), train_loss, val_loss, test_loss))
+          'Test MAE: {:.7f}'.format(epoch+1, optimizer.param_groups[0]['lr'], scheduler.get_last_lr()[0], train_loss, val_loss, test_loss))
 
 print('===================================================================================')
 print('Best Epoch:', best_epoch)
