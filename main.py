@@ -79,12 +79,12 @@ dataset = QM9(path, transform=MyTransform()).shuffle()
 print('# of graphs:', len(dataset))
 
 # Split dataset
-# train_dataset = dataset[:110000]
-# val_dataset = dataset[110000:120000]
-# test_dataset = dataset[120000:]
-train_dataset = dataset[:11000]
-val_dataset = dataset[11000:12000]
-test_dataset = dataset[12000:13000]
+train_dataset = dataset[:110000]
+val_dataset = dataset[110000:120000]
+test_dataset = dataset[120000:]
+# train_dataset = dataset[:11000]
+# val_dataset = dataset[11000:12000]
+# test_dataset = dataset[12000:13000]
 
 #Load dataset
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, worker_init_fn=args.seed)
