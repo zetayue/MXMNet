@@ -10,3 +10,4 @@ https://pytorch-geometric.com/whl/torch-1.4.0/torch_sparse-0.6.0%2Bcu101-cp37-cp
 https://pytorch-geometric.com/whl/torch-1.4.0/torch_cluster-1.5.4%2Bcu101-cp37-cp37m-linux_x86_64.whl
 torch-geometric==1.4.2
 git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
+wandb

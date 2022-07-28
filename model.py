@@ -7,13 +7,14 @@ from torch_sparse import SparseTensor
 from torch_scatter import scatter
 
 from layers import Global_MP, Local_MP
-from utils import BesselBasisLayer, SphericalBasisLayer, MLP
+from utils import BesselBasisLayer, SphericalBasisLayer, MLP, DAGNN
 
 class Config(object):
-    def __init__(self, dim, n_layer, cutoff):
+    def __init__(self, dim, n_layer, cutoff, pooling):
         self.dim = dim
         self.n_layer = n_layer
         self.cutoff = cutoff
+        self.pooling = pooling
 
 class MXMNet(nn.Module):
     def __init__(self, config: Config, num_spherical=7, num_radial=6, envelope_exponent=5):
@@ -22,6 +23,7 @@ class MXMNet(nn.Module):
         self.dim = config.dim
         self.n_layer = config.n_layer
         self.cutoff = config.cutoff
+        self.pooling = config.pooling
 
         self.embeddings = nn.Parameter(torch.ones((5, self.dim)))
 
@@ -43,6 +45,9 @@ class MXMNet(nn.Module):
         for layer in range(config.n_layer):
             self.local_layers.append(Local_MP(config))
         
+        self.dagnn = DAGNN(5, self.dim)
+        self.graph_pred_linear = torch.nn.Linear(self.dim, 1)
+        self.pool = global_add_pool
         self.init()
 
     def init(self):
@@ -138,5 +143,10 @@ class MXMNet(nn.Module):
             node_sum += t
         
         # Readout
-        output = global_add_pool(node_sum, batch)
+        if self.pooling == 'dagnn':
+            h = self.dagnn(h, edge_index)
+            h = self.pool(h, data.batch)
+            output = self.graph_pred_linear(h)
+        else:
+            output = self.pool(node_sum, batch)
         return output.view(-1)

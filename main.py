@@ -16,6 +16,8 @@ from warmup_scheduler import GradualWarmupScheduler
 from model import MXMNet, Config
 from utils import EMA, save_ckp, load_ckp
 from qm9_dataset import QM9
+import wandb
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=0, help='GPU number.')
@@ -29,10 +31,12 @@ parser.add_argument('--dataset', type=str, default="QM9", help='Dataset')
 parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
 parser.add_argument('--target', type=int, default="7", help='Index of target (0~11) for prediction')
 parser.add_argument('--cutoff', type=float, default=5.0, help='Distance cutoff used in the global layer')
+parser.add_argument('--pooling', type=str, default='sum', help='Type of pooling to be used for graph embedding')
 parser.add_argument('--checkpoint_dir', type=str, default="checkpoint", help='Checkpoint directory')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='Checkpoint path')
 
 args = parser.parse_args()
+wandb.init(config=args)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if torch.cuda.is_available():
@@ -75,9 +79,12 @@ dataset = QM9(path, transform=MyTransform()).shuffle()
 print('# of graphs:', len(dataset))
 
 # Split dataset
-train_dataset = dataset[:110000]
-val_dataset = dataset[110000:120000]
-test_dataset = dataset[120000:]
+# train_dataset = dataset[:110000]
+# val_dataset = dataset[110000:120000]
+# test_dataset = dataset[120000:]
+train_dataset = dataset[:11000]
+val_dataset = dataset[11000:12000]
+test_dataset = dataset[12000:13000]
 
 #Load dataset
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, worker_init_fn=args.seed)
@@ -87,9 +94,10 @@ val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 print('Loaded the QM9 dataset. Target property: ', targets[args.target])
 
 # Load model
-config = Config(dim=args.dim, n_layer=args.n_layer, cutoff=args.cutoff)
+config = Config(dim=args.dim, n_layer=args.n_layer, cutoff=args.cutoff, pooling=args.pooling)
 model = MXMNet(config)
 model = model.to(device)
+wandb.watch(model, log_freq=100)
 print('Loaded the MXMNet.')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
@@ -131,13 +139,13 @@ for epoch in range(start_epoch, args.epochs):
         
         curr_epoch = epoch + float(step) / (len(train_dataset) / args.batch_size)
         scheduler_warmup.step(curr_epoch)
-
         ema(model)
         step += 1
 
     train_loss = loss_all / len(train_loader.dataset)
-
+    wandb.log({"train_loss": loss})
     val_loss = test(val_loader)
+    wandb.log({"val_mae": val_loss})
     checkpoint = {
             'epoch': epoch + 1,
             'valid_loss_min': val_loss,
@@ -148,6 +156,7 @@ for epoch in range(start_epoch, args.epochs):
     is_best = False
     if best_val_loss is None or val_loss <= best_val_loss:
         test_loss = test(test_loader)
+        wandb.log({"test_mae": test_loss})
         best_epoch = epoch
         best_val_loss = val_loss
         is_best = True

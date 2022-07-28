@@ -8,7 +8,9 @@ from torch_geometric.utils import remove_self_loops, add_self_loops, sort_edge_i
 from torch_geometric.data import InMemoryDataset, download_url, extract_zip, Data
 from torch_sparse import coalesce
 from torch_scatter import scatter
+import torch_geometric
 from torch_geometric.io import read_txt_array
+from torch_geometric.nn.conv.gcn_conv import gcn_norm
 
 from sklearn.model_selection import KFold
 from sklearn.utils import shuffle
@@ -260,7 +262,8 @@ class BesselBasisLayer(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(PI)
+        with torch.no_grad():
+            torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(PI)
 
     def forward(self, dist):
         dist = dist.unsqueeze(-1) / self.cutoff
@@ -581,3 +584,49 @@ def load_ckp(checkpoint_fpath, model, optimizer, scheduler):
     valid_loss_min = checkpoint['valid_loss_min']
     # return model, optimizer, epoch value, min validation loss 
     return model, optimizer, checkpoint['epoch'], valid_loss_min, scheduler
+
+
+class DAGNN(torch_geometric.nn.MessagePassing):
+    def __init__(self, K, emb_dim, normalize=True, add_self_loops=True):
+        super(DAGNN, self).__init__()
+        self.K = K
+        self.normalize = normalize
+        self.add_self_loops = add_self_loops
+
+        self.proj = torch.nn.Linear(emb_dim, 1)
+
+        self._cached_edge_index = None
+
+    def forward(self, x, edge_index, edge_weight=None):
+        if self.normalize:
+            edge_index, norm = gcn_norm(  # yapf: disable
+                edge_index,
+                edge_weight,
+                x.size(self.node_dim),
+                False,
+                self.add_self_loops,
+                dtype=x.dtype,
+            )
+
+        preds = []
+        preds.append(x)
+        for k in range(self.K):
+            x = self.propagate(edge_index, x=x, norm=norm)
+            preds.append(x)
+
+        pps = torch.stack(preds, dim=1)
+        retain_score = self.proj(pps)
+        retain_score = retain_score.squeeze()
+        retain_score = torch.sigmoid(retain_score)
+        retain_score = retain_score.unsqueeze(1)
+        out = torch.matmul(retain_score, pps).squeeze()
+        return out
+
+    def message(self, x_j, norm):
+        return norm.view(-1, 1) * x_j
+
+    def __repr__(self):
+        return "{}(K={})".format(self.__class__.__name__, self.K)
+
+    def reset_parameters(self):
+        self.proj.reset_parameters()
