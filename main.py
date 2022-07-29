@@ -24,6 +24,8 @@ parser.add_argument('--gpu', type=int, default=0, help='GPU number.')
 parser.add_argument('--seed', type=int, default=920, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=900, help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=1e-4, help='Initial learning rate.')
+parser.add_argument('--scheduler', type=str, default='ExponentialLR', help='Scheduler Type')
+parser.add_argument('--one_cycle_lr_total_steps', type=int, default=10000, help='Total steps in OneCycleLR')
 parser.add_argument('--wd', type=float, default=0, help='Weight decay value.')
 parser.add_argument('--n_layer', type=int, default=6, help='Number of hidden layers.')
 parser.add_argument('--dim', type=int, default=128, help='Size of input hidden units.')
@@ -101,7 +103,12 @@ wandb.watch(model, log_freq=100)
 print('Loaded the MXMNet.')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
-scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9961697)
+if args.scheduler == 'MultiStepLR':
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100], gamma=0.3)
+elif args.scheduler == 'OneCycleLR':
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer=optimizer, max_lr=args.lr, total_steps=1000)
+else:
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9961697)
 
 start_epoch = 0
 if args.checkpoint_path:

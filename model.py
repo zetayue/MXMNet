@@ -156,8 +156,9 @@ class MXMNet(nn.Module):
         # Readout
         if self.pooling == 'dagnn':
             h = self.dagnn(h, edge_index)
-            h = self.pool(h, data.batch)
+            h = self.pool(h, batch)
             output = self.graph_pred_linear(h)
         else:
-            output = self.pool(node_sum, batch)
+            h = self.pool(h, batch)
+            output = self.graph_pred_linear(h)
         return output.view(-1)
