@@ -104,11 +104,11 @@ print('Loaded the MXMNet.')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
 if args.scheduler == 'MultiStepLR':
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100], gamma=0.3)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 70], gamma=0.3)
 elif args.scheduler == 'OneCycleLR':
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer=optimizer, max_lr=args.lr, total_steps=1000)
 else:
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9961697)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.98)
 
 start_epoch = 0
 if args.checkpoint_path:
