@@ -25,7 +25,8 @@ parser.add_argument('--seed', type=int, default=920, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=900, help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=1e-4, help='Initial learning rate.')
 parser.add_argument('--scheduler', type=str, default='ExponentialLR', help='Scheduler Type')
-parser.add_argument('--one_cycle_lr_total_steps', type=int, default=10000, help='Total steps in OneCycleLR')
+parser.add_argument('--ea_gamma', type=int, default=0.9961697, help='Exponential rate in ExponentialLR')
+parser.add_argument('--one_cycle_lr_total_steps', type=int, default=1000, help='Total steps in OneCycleLR')
 parser.add_argument('--wd', type=float, default=0, help='Weight decay value.')
 parser.add_argument('--n_layer', type=int, default=6, help='Number of hidden layers.')
 parser.add_argument('--dim', type=int, default=128, help='Size of input hidden units.')
@@ -104,11 +105,13 @@ print('Loaded the MXMNet.')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
 if args.scheduler == 'MultiStepLR':
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 70], gamma=0.3)
+    after_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 70], gamma=0.3)
+    scheduler = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=after_scheduler)
 elif args.scheduler == 'OneCycleLR':
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer=optimizer, max_lr=args.lr, total_steps=1000)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer=optimizer, max_lr=args.lr, total_steps=args.one_cycle_lr_total_steps)
 else:
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.98)
+    after_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.ea_gamma)
+    scheduler = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=after_scheduler)
 
 start_epoch = 0
 if args.checkpoint_path:
@@ -117,7 +120,7 @@ if args.checkpoint_path:
     print("start_epoch = ", start_epoch)
     print("valid_loss_min = {:.6f}".format(valid_loss_min))
 
-scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=scheduler)
+
 ema = EMA(model, decay=0.999)
 
 print('===================================================================================')
@@ -145,7 +148,7 @@ for epoch in range(start_epoch, args.epochs):
         optimizer.step()
         
         curr_epoch = epoch + float(step) / (len(train_dataset) / args.batch_size)
-        scheduler_warmup.step(curr_epoch)
+        scheduler.step(curr_epoch)
         ema(model)
         step += 1
 
