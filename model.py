@@ -111,11 +111,11 @@ class MXMNet(nn.Module):
         dist_l = (pos[i_l] - pos[j_l]).pow(2).sum(dim=-1).sqrt()
         
         # Get the edges pairwise distances in the global layer
-        # row, col = radius(pos, pos, self.cutoff, batch, batch, max_num_neighbors=500)
-        # edge_index_g = torch.stack([row, col], dim=0)
-        # edge_index_g, _ = remove_self_loops(edge_index_g)
-        # j_g, i_g = edge_index_g
-        # dist_g = (pos[i_g] - pos[j_g]).pow(2).sum(dim=-1).sqrt()
+        row, col = radius(pos, pos, self.cutoff, batch, batch, max_num_neighbors=500)
+        edge_index_g = torch.stack([row, col], dim=0)
+        edge_index_g, _ = remove_self_loops(edge_index_g)
+        j_g, i_g = edge_index_g
+        dist_g = (pos[i_g] - pos[j_g]).pow(2).sum(dim=-1).sqrt()
         
         # Compute the node indices for defining the angles
         idx_i_1, idx_j, idx_k, idx_kj, idx_ji, idx_i_2, idx_j1, idx_j2, idx_jj, idx_ji_2 = self.indices(edge_index_l, num_nodes=h.size(0))
@@ -133,12 +133,12 @@ class MXMNet(nn.Module):
         angle_2 = torch.atan2(b, a)
 
         # Get the RBF and SBF embeddings
-        # rbf_g = self.rbf_g(dist_g)
+        rbf_g = self.rbf_g(dist_g)
         rbf_l = self.rbf_l(dist_l)
         sbf_1 = self.sbf(dist_l, angle_1, idx_kj)
         sbf_2 = self.sbf(dist_l, angle_2, idx_jj)
         
-        # rbf_g = self.rbf_g_mlp(rbf_g)
+        rbf_g = self.rbf_g_mlp(rbf_g)
         rbf_l = self.rbf_l_mlp(rbf_l)
         sbf_1 = self.sbf_1_mlp(sbf_1)
         sbf_2 = self.sbf_2_mlp(sbf_2)
@@ -147,6 +147,7 @@ class MXMNet(nn.Module):
         virtualnode_embedding = self.virtualnode_embedding(torch.zeros(batch[-1].item() + 1).to(edge_index.dtype).to(edge_index.device))
         node_sum = 0
         for layer in range(self.n_layer):
+            h = self.global_layers[layer](h, rbf_g, edge_index_g)
             h, t = self.local_layers[layer](h, rbf_l, sbf_1, sbf_2, idx_kj, idx_ji, idx_jj, idx_ji_2, edge_index_l)
             node_sum += t
             if layer < self.n_layer:
@@ -159,6 +160,7 @@ class MXMNet(nn.Module):
             h = self.pool(h, batch)
             output = self.graph_pred_linear(h)
         else:
-            h = self.pool(h, batch)
-            output = self.graph_pred_linear(h)
+            # h = self.pool(node_sum, batch)
+            # output = self.graph_pred_linear(h)
+            output = self.pool(node_sum, batch)
         return output.view(-1)
