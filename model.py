@@ -9,6 +9,7 @@ from torch_scatter import scatter
 
 from layers import Global_MP, Local_MP
 from utils import BesselBasisLayer, SphericalBasisLayer, MLP, DAGNN
+from mpnn import MPNN
 
 class Config(object):
     def __init__(self, dim, n_layer, cutoff, pooling):
@@ -50,9 +51,9 @@ class MXMNet(nn.Module):
         self.mlp_virtualnode_layers = nn.ModuleList()
         for layer in range(config.n_layer):
             self.mlp_virtualnode_layers.append(
-                nn.Sequential(nn.Linear(self.dim, self.dim), nn.BatchNorm1d(self.dim), nn.Sigmoid(),
-                              nn.Linear(self.dim, self.dim), nn.BatchNorm1d(self.dim), nn.Sigmoid()))
-
+                nn.Sequential(nn.Linear(self.dim, self.dim), nn.Sigmoid(),
+                              nn.Linear(self.dim, self.dim), nn.Sigmoid()))
+        self.mpnn = MPNN(self.dim)
         self.dagnn = DAGNN(5, self.dim)
         self.graph_pred_linear = torch.nn.Linear(self.dim, 1)
         self.pool = global_add_pool
@@ -98,7 +99,8 @@ class MXMNet(nn.Module):
 
 
     def forward(self, data):
-        x = data.x
+        # x = data.x
+        x = torch.argmax(data.x[:, :5], dim=1)
         edge_index = data.edge_index
         pos = data.pos
         batch = data.batch
@@ -155,12 +157,18 @@ class MXMNet(nn.Module):
                 virtualnode_embedding = self.mlp_virtualnode_layers[layer](virtualnode_embedding_temp)
                 h = h + virtualnode_embedding[batch]
         # Readout
+        x_h = self.mpnn(data)
+        x_h = self.pool(x_h, batch)
         if self.pooling == 'dagnn':
             h = self.dagnn(h, edge_index)
             h = self.pool(h, batch)
+            h = h + x_h
             output = self.graph_pred_linear(h)
         else:
             # h = self.pool(node_sum, batch)
             # output = self.graph_pred_linear(h)
-            output = self.pool(node_sum, batch)
+            # output = self.pool(node_sum, batch)
+            h = self.pool(h, batch)
+            h = h + x_h
+            output = self.graph_pred_linear(h)
         return output.view(-1)

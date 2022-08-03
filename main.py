@@ -10,12 +10,14 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
-from torch_geometric.data import DataLoader
+# from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
 from warmup_scheduler import GradualWarmupScheduler
 
 from model import MXMNet, Config
 from utils import EMA, save_ckp, load_ckp
-from qm9_dataset import QM9
+# from qm9_dataset import QM9
+from torch_geometric.datasets import QM9
 import wandb
 
 
@@ -105,7 +107,7 @@ print('Loaded the MXMNet.')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd, amsgrad=False)
 if args.scheduler == 'MultiStepLR':
-    after_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 70], gamma=0.3)
+    after_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 60], gamma=0.2)
     scheduler = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=1, after_scheduler=after_scheduler)
 elif args.scheduler == 'OneCycleLR':
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer=optimizer, max_lr=args.lr, total_steps=args.one_cycle_lr_total_steps)
