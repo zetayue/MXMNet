@@ -1,52 +1,59 @@
 import os
 import os.path as osp
+
 import numpy as np
+import rdkit
 import sympy as sym
-from tqdm import tqdm
 import torch
 import torch.nn.functional as F
+from rdkit import Chem, RDLogger
+from rdkit.Chem.rdchem import BondType as BT
+from rdkit.Chem.rdchem import HybridizationType
+from torch_geometric.data import Data, InMemoryDataset, download_url, extract_zip
+from torch_geometric.nn import global_add_pool, global_mean_pool, radius
+from torch_geometric.utils import add_self_loops, remove_self_loops, sort_edge_index
 from torch_scatter import scatter
 from torch_sparse import SparseTensor
-from torch_geometric.data import (InMemoryDataset, download_url, extract_zip, Data)
-from torch_geometric.nn import global_mean_pool, global_add_pool, radius
-from torch_geometric.utils import remove_self_loops, add_self_loops, sort_edge_index
+from tqdm import tqdm
 
 from utils import BesselBasisLayer, SphericalBasisLayer
 
-import rdkit
-from rdkit import Chem
-from rdkit.Chem.rdchem import HybridizationType
-from rdkit.Chem.rdchem import BondType as BT
-from rdkit import RDLogger
-RDLogger.DisableLog('rdApp.*')
+RDLogger.DisableLog("rdApp.*")
 
 HAR2EV = 27.2113825435
 KCALMOL2EV = 0.04336414
 
-conversion = torch.tensor([
-    1., 1., HAR2EV, HAR2EV, HAR2EV, 1., HAR2EV, HAR2EV, HAR2EV, HAR2EV, HAR2EV,
-    1., KCALMOL2EV, KCALMOL2EV, KCALMOL2EV, KCALMOL2EV, 1., 1., 1.
-])
+conversion = torch.tensor(
+    [
+        1.0,
+        1.0,
+        HAR2EV,
+        HAR2EV,
+        HAR2EV,
+        1.0,
+        HAR2EV,
+        HAR2EV,
+        HAR2EV,
+        HAR2EV,
+        HAR2EV,
+        1.0,
+        KCALMOL2EV,
+        KCALMOL2EV,
+        KCALMOL2EV,
+        KCALMOL2EV,
+        1.0,
+        1.0,
+        1.0,
+    ]
+)
 
 atomrefs = {
-    6: [0., 0., 0., 0., 0.],
-    7: [
-        -13.61312172, -1029.86312267, -1485.30251237, -2042.61123593,
-        -2713.48485589
-    ],
-    8: [
-        -13.5745904, -1029.82456413, -1485.26398105, -2042.5727046,
-        -2713.44632457
-    ],
-    9: [
-        -13.54887564, -1029.79887659, -1485.2382935, -2042.54701705,
-        -2713.42063702
-    ],
-    10: [
-        -13.90303183, -1030.25891228, -1485.71166277, -2043.01812778,
-        -2713.88796536
-    ],
-    11: [0., 0., 0., 0., 0.],
+    6: [0.0, 0.0, 0.0, 0.0, 0.0],
+    7: [-13.61312172, -1029.86312267, -1485.30251237, -2042.61123593, -2713.48485589],
+    8: [-13.5745904, -1029.82456413, -1485.26398105, -2042.5727046, -2713.44632457],
+    9: [-13.54887564, -1029.79887659, -1485.2382935, -2042.54701705, -2713.42063702],
+    10: [-13.90303183, -1030.25891228, -1485.71166277, -2043.01812778, -2713.88796536],
+    11: [0.0, 0.0, 0.0, 0.0, 0.0],
 }
 
 
@@ -115,12 +122,14 @@ class QM9(InMemoryDataset):
             final dataset. (default: :obj:`None`)
     """  # noqa: E501
 
-    raw_url = ('https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/'
-               'molnet_publish/qm9.zip')
-    raw_url2 = 'https://ndownloader.figshare.com/files/3195404'
+    raw_url = (
+        "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/"
+        "molnet_publish/qm9.zip"
+    )
+    raw_url2 = "https://ndownloader.figshare.com/files/3195404"
 
-    types = {'H': 0, 'C': 1, 'N': 2, 'O': 3, 'F': 4}
-    symbols = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'F': 9}
+    types = {"H": 0, "C": 1, "N": 2, "O": 3, "F": 4}
+    symbols = {"H": 1, "C": 6, "N": 7, "O": 8, "F": 9}
     bonds = {BT.SINGLE: 0, BT.DOUBLE: 1, BT.TRIPLE: 2, BT.AROMATIC: 3}
 
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
@@ -144,11 +153,11 @@ class QM9(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ['gdb9.sdf', 'gdb9.sdf.csv', 'uncharacterized.txt']
+        return ["gdb9.sdf", "gdb9.sdf.csv", "uncharacterized.txt"]
 
     @property
     def processed_file_names(self):
-        return 'data_v2.pt'
+        return "data_v2.pt"
 
     def download(self):
         file_path = download_url(self.raw_url, self.raw_dir)
@@ -156,23 +165,23 @@ class QM9(InMemoryDataset):
         os.unlink(file_path)
 
         file_path = download_url(self.raw_url2, self.raw_dir)
-        os.rename(osp.join(self.raw_dir, '3195404'),
-                  osp.join(self.raw_dir, 'uncharacterized.txt'))
+        os.rename(
+            osp.join(self.raw_dir, "3195404"),
+            osp.join(self.raw_dir, "uncharacterized.txt"),
+        )
 
     def process(self):
-        with open(self.raw_paths[1], 'r') as f:
-            target = f.read().split('\n')[1:-1]
-            target = [[float(x) for x in line.split(',')[1:20]]
-                      for line in target]
+        with open(self.raw_paths[1], "r") as f:
+            target = f.read().split("\n")[1:-1]
+            target = [[float(x) for x in line.split(",")[1:20]] for line in target]
             target = torch.tensor(target, dtype=torch.float)
             target = torch.cat([target[:, 3:], target[:, :3]], dim=-1)
             target = target * conversion.view(1, -1)
 
-        with open(self.raw_paths[2], 'r') as f:
-            skip = [int(x.split()[0]) - 1 for x in f.read().split('\n')[9:-2]]
+        with open(self.raw_paths[2], "r") as f:
+            skip = [int(x.split()[0]) - 1 for x in f.read().split("\n")[9:-2]]
 
-        suppl = Chem.SDMolSupplier(self.raw_paths[0], removeHs=False,
-                                   sanitize=False)
+        suppl = Chem.SDMolSupplier(self.raw_paths[0], removeHs=False, sanitize=False)
 
         data_list = []
         max_dist = 0
@@ -182,7 +191,7 @@ class QM9(InMemoryDataset):
 
             N = mol.GetNumAtoms()
 
-            pos = suppl.GetItemText(i).split('\n')[4:4 + N]
+            pos = suppl.GetItemText(i).split("\n")[4 : 4 + N]
             pos = [[float(x) for x in line.split()[:3]] for line in pos]
             pos = torch.tensor(pos, dtype=torch.float)
 
@@ -213,8 +222,9 @@ class QM9(InMemoryDataset):
 
             edge_index = torch.tensor([row, col], dtype=torch.long)
             edge_type = torch.tensor(edge_type, dtype=torch.long)
-            edge_attr = F.one_hot(edge_type,
-                                  num_classes=len(self.bonds)).to(torch.float)
+            edge_attr = F.one_hot(edge_type, num_classes=len(self.bonds)).to(
+                torch.float
+            )
 
             perm = (edge_index[0] * N + edge_index[1]).argsort()
             edge_index = edge_index[:, perm]
@@ -228,7 +238,7 @@ class QM9(InMemoryDataset):
             x = torch.tensor(type_idx).to(torch.float)
 
             y = target[i].unsqueeze(0)
-            name = mol.GetProp('_Name')
+            name = mol.GetProp("_Name")
             y = y[:11, :]
 
             data = Data(x=x, pos=pos, edge_index=edge_index, y=y)

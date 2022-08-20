@@ -1,13 +1,13 @@
-rdkit-pypi==2021.3.1
-numpy==1.20.0
-scikit-learn==0.24.1
-scipy==1.3.1
-sympy==1.6
-torch==1.4.0
-torchvision==0.5.0
-https://pytorch-geometric.com/whl/torch-1.4.0/torch_scatter-2.0.4%2Bcu101-cp37-cp37m-linux_x86_64.whl
-https://pytorch-geometric.com/whl/torch-1.4.0/torch_sparse-0.6.0%2Bcu101-cp37-cp37m-linux_x86_64.whl
-https://pytorch-geometric.com/whl/torch-1.4.0/torch_cluster-1.5.4%2Bcu101-cp37-cp37m-linux_x86_64.whl
-torch-geometric==1.4.2
-git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
-wandb
+torch==1.11.0 -i https://download.pytorch.org/whl/cu113
+torch-scatter -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+torch-sparse -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+torch-cluster -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+torch-spline-conv -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+torch-geometric==2.0.4
+pytorch-lightning==1.6.4
+boltons==21.0.0
+torchmetrics==0.9.1
+sympy==1.10.1
+wandb==0.12.20
+git+https://github.com/ildoonet/pytorch-gradual-warmup-lr
+rdkit-pypi>=2021.3.1

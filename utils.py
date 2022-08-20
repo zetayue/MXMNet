@@ -1,33 +1,30 @@
-import numpy as np
+import glob
 import inspect
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn import Parameter, Sequential, ModuleList, Linear
-from torch_geometric.utils import remove_self_loops, add_self_loops, sort_edge_index
-from torch_geometric.data import InMemoryDataset, download_url, extract_zip, Data
-from torch_sparse import coalesce
-from torch_scatter import scatter
-import torch_geometric
-from torch_geometric.io import read_txt_array
-from torch_geometric.nn.conv.gcn_conv import gcn_norm
-
-from sklearn.model_selection import KFold
-from sklearn.utils import shuffle
-
-from operator import itemgetter
-from collections import OrderedDict
-
 import os
 import os.path as osp
 import shutil
-import glob
+from collections import OrderedDict
+from math import pi as PI
+from math import sqrt
+from operator import itemgetter
 
+import numpy as np
 import sympy as sym
-from math import sqrt, pi as PI
-
-from scipy.optimize import brentq
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch_geometric
 from scipy import special as sp
+from scipy.optimize import brentq
+from sklearn.model_selection import KFold
+from sklearn.utils import shuffle
+from torch.nn import Linear, ModuleList, Parameter, Sequential
+from torch_geometric.data import Data, InMemoryDataset, download_url, extract_zip
+from torch_geometric.io import read_txt_array
+from torch_geometric.nn.conv.gcn_conv import gcn_norm
+from torch_geometric.utils import add_self_loops, remove_self_loops, sort_edge_index
+from torch_scatter import scatter
+from torch_sparse import coalesce
 
 try:
     import sympy as sym
@@ -51,8 +48,7 @@ class EMA:
         for name, param in model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
-                new_average = \
-                    (1.0 - decay) * param.data + decay * self.shadow[name]
+                new_average = (1.0 - decay) * param.data + decay * self.shadow[name]
                 self.shadow[name] = new_average.clone()
 
     def assign(self, model):
@@ -70,9 +66,12 @@ class EMA:
 
 
 def MLP(channels):
-    return Sequential(*[
-        Sequential(Linear(channels[i - 1], channels[i]), SiLU())
-        for i in range(1, len(channels))])
+    return Sequential(
+        *[
+            Sequential(Linear(channels[i - 1], channels[i]), SiLU())
+            for i in range(1, len(channels))
+        ]
+    )
 
 
 class Res(nn.Module):
@@ -95,24 +94,28 @@ def compute_idx(pos, edge_index):
     d_ij = torch.norm(abs(pos_j - pos_i), dim=-1, keepdim=False).unsqueeze(-1) + 1e-5
     v_ji = (pos_i - pos_j) / d_ij
 
-    unique, counts = torch.unique(edge_index[0], sorted=True, return_counts=True) #Get central values
-    full_index = torch.arange(0, edge_index[0].size()[0]).cuda().int() #init full index
-    #print('full_index', full_index)
+    unique, counts = torch.unique(
+        edge_index[0], sorted=True, return_counts=True
+    )  # Get central values
+    full_index = (
+        torch.arange(0, edge_index[0].size()[0]).cuda().int()
+    )  # init full index
+    # print('full_index', full_index)
 
-    #Compute 1
+    # Compute 1
     repeat = torch.repeat_interleave(counts, counts)
-    counts_repeat1 = torch.repeat_interleave(full_index, repeat) #0,...,0,1,...,1,...
+    counts_repeat1 = torch.repeat_interleave(full_index, repeat)  # 0,...,0,1,...,1,...
 
-    #Compute 2
-    split = torch.split(full_index, counts.tolist()) #split full index
-    index2 = list(edge_index[0].data.cpu().numpy()) #get repeat index
-    counts_repeat2 = torch.cat(itemgetter(*index2)(split), dim=0) #0,1,2,...,0,1,2,..
+    # Compute 2
+    split = torch.split(full_index, counts.tolist())  # split full index
+    index2 = list(edge_index[0].data.cpu().numpy())  # get repeat index
+    counts_repeat2 = torch.cat(itemgetter(*index2)(split), dim=0)  # 0,1,2,...,0,1,2,..
 
-    #Compute angle embeddings
+    # Compute angle embeddings
     v1 = v_ji[counts_repeat1.long()]
     v2 = v_ji[counts_repeat2.long()]
 
-    angle = (v1*v2).sum(-1).unsqueeze(-1)
+    angle = (v1 * v2).sum(-1).unsqueeze(-1)
     angle = torch.clamp(angle, min=-1.0, max=1.0) + 1e-6 + 1.0
 
     return counts_repeat1.long(), counts_repeat2.long(), angle
@@ -123,13 +126,13 @@ def Jn(r, n):
 
 
 def Jn_zeros(n, k):
-    zerosj = np.zeros((n, k), dtype='float32')
+    zerosj = np.zeros((n, k), dtype="float32")
     zerosj[0] = np.arange(1, k + 1) * np.pi
     points = np.arange(1, k + n) * np.pi
-    racines = np.zeros(k + n - 1, dtype='float32')
+    racines = np.zeros(k + n - 1, dtype="float32")
     for i in range(1, n):
         for j in range(k + n - 1 - i):
-            foo = brentq(Jn, points[j], points[j + 1], (i, ))
+            foo = brentq(Jn, points[j], points[j + 1], (i,))
             racines[j] = foo
         points = racines
         zerosj[i][:k] = racines[:k]
@@ -138,13 +141,13 @@ def Jn_zeros(n, k):
 
 
 def spherical_bessel_formulas(n):
-    x = sym.symbols('x')
+    x = sym.symbols("x")
 
     f = [sym.sin(x) / x]
     a = sym.sin(x) / x
     for i in range(1, n):
         b = sym.diff(a, x) / x
-        f += [sym.simplify(b * (-x)**i)]
+        f += [sym.simplify(b * (-x) ** i)]
         a = sym.simplify(b)
     return f
 
@@ -155,31 +158,35 @@ def bessel_basis(n, k):
     for order in range(n):
         normalizer_tmp = []
         for i in range(k):
-            normalizer_tmp += [0.5 * Jn(zeros[order, i], order + 1)**2]
-        normalizer_tmp = 1 / np.array(normalizer_tmp)**0.5
+            normalizer_tmp += [0.5 * Jn(zeros[order, i], order + 1) ** 2]
+        normalizer_tmp = 1 / np.array(normalizer_tmp) ** 0.5
         normalizer += [normalizer_tmp]
 
     f = spherical_bessel_formulas(n)
-    x = sym.symbols('x')
+    x = sym.symbols("x")
     bess_basis = []
     for order in range(n):
         bess_basis_tmp = []
         for i in range(k):
             bess_basis_tmp += [
-                sym.simplify(normalizer[order][i] *
-                             f[order].subs(x, zeros[order, i] * x))
+                sym.simplify(
+                    normalizer[order][i] * f[order].subs(x, zeros[order, i] * x)
+                )
             ]
         bess_basis += [bess_basis_tmp]
     return bess_basis
 
 
 def sph_harm_prefactor(k, m):
-    return ((2 * k + 1) * np.math.factorial(k - abs(m)) /
-            (4 * np.pi * np.math.factorial(k + abs(m))))**0.5
+    return (
+        (2 * k + 1)
+        * np.math.factorial(k - abs(m))
+        / (4 * np.pi * np.math.factorial(k + abs(m)))
+    ) ** 0.5
 
 
 def associated_legendre_polynomials(k, zero_m_only=True):
-    z = sym.symbols('z')
+    z = sym.symbols("z")
     P_l_m = [[0] * (j + 1) for j in range(k)]
 
     P_l_m[0][0] = 1
@@ -187,18 +194,22 @@ def associated_legendre_polynomials(k, zero_m_only=True):
         P_l_m[1][0] = z
 
         for j in range(2, k):
-            P_l_m[j][0] = sym.simplify(((2 * j - 1) * z * P_l_m[j - 1][0] -
-                                        (j - 1) * P_l_m[j - 2][0]) / j)
+            P_l_m[j][0] = sym.simplify(
+                ((2 * j - 1) * z * P_l_m[j - 1][0] - (j - 1) * P_l_m[j - 2][0]) / j
+            )
         if not zero_m_only:
             for i in range(1, k):
                 P_l_m[i][i] = sym.simplify((1 - 2 * i) * P_l_m[i - 1][i - 1])
                 if i + 1 < k:
-                    P_l_m[i + 1][i] = sym.simplify(
-                        (2 * i + 1) * z * P_l_m[i][i])
+                    P_l_m[i + 1][i] = sym.simplify((2 * i + 1) * z * P_l_m[i][i])
                 for j in range(i + 2, k):
                     P_l_m[j][i] = sym.simplify(
-                        ((2 * j - 1) * z * P_l_m[j - 1][i] -
-                         (i + j - 1) * P_l_m[j - 2][i]) / (j - i))
+                        (
+                            (2 * j - 1) * z * P_l_m[j - 1][i]
+                            - (i + j - 1) * P_l_m[j - 2][i]
+                        )
+                        / (j - i)
+                    )
 
     return P_l_m
 
@@ -208,33 +219,35 @@ def real_sph_harm(k, zero_m_only=True, spherical_coordinates=True):
         S_m = [0]
         C_m = [1]
         for i in range(1, k):
-            x = sym.symbols('x')
-            y = sym.symbols('y')
+            x = sym.symbols("x")
+            y = sym.symbols("y")
             S_m += [x * S_m[i - 1] + y * C_m[i - 1]]
             C_m += [x * C_m[i - 1] - y * S_m[i - 1]]
 
     P_l_m = associated_legendre_polynomials(k, zero_m_only)
     if spherical_coordinates:
-        theta = sym.symbols('theta')
-        z = sym.symbols('z')
+        theta = sym.symbols("theta")
+        z = sym.symbols("z")
         for i in range(len(P_l_m)):
             for j in range(len(P_l_m[i])):
                 if type(P_l_m[i][j]) != int:
                     P_l_m[i][j] = P_l_m[i][j].subs(z, sym.cos(theta))
         if not zero_m_only:
-            phi = sym.symbols('phi')
+            phi = sym.symbols("phi")
             for i in range(len(S_m)):
-                S_m[i] = S_m[i].subs(x,
-                                     sym.sin(theta) * sym.cos(phi)).subs(
-                                         y,
-                                         sym.sin(theta) * sym.sin(phi))
+                S_m[i] = (
+                    S_m[i]
+                    .subs(x, sym.sin(theta) * sym.cos(phi))
+                    .subs(y, sym.sin(theta) * sym.sin(phi))
+                )
             for i in range(len(C_m)):
-                C_m[i] = C_m[i].subs(x,
-                                     sym.sin(theta) * sym.cos(phi)).subs(
-                                         y,
-                                         sym.sin(theta) * sym.sin(phi))
+                C_m[i] = (
+                    C_m[i]
+                    .subs(x, sym.sin(theta) * sym.cos(phi))
+                    .subs(y, sym.sin(theta) * sym.sin(phi))
+                )
 
-    Y_func_l_m = [['0'] * (2 * j + 1) for j in range(k)]
+    Y_func_l_m = [["0"] * (2 * j + 1) for j in range(k)]
     for i in range(k):
         Y_func_l_m[i][0] = sym.simplify(sph_harm_prefactor(i, 0) * P_l_m[i][0])
 
@@ -242,11 +255,13 @@ def real_sph_harm(k, zero_m_only=True, spherical_coordinates=True):
         for i in range(1, k):
             for j in range(1, i + 1):
                 Y_func_l_m[i][j] = sym.simplify(
-                    2**0.5 * sph_harm_prefactor(i, j) * C_m[j] * P_l_m[i][j])
+                    2**0.5 * sph_harm_prefactor(i, j) * C_m[j] * P_l_m[i][j]
+                )
         for i in range(1, k):
             for j in range(1, i + 1):
                 Y_func_l_m[i][-j] = sym.simplify(
-                    2**0.5 * sph_harm_prefactor(i, -j) * S_m[j] * P_l_m[i][j])
+                    2**0.5 * sph_harm_prefactor(i, -j) * S_m[j] * P_l_m[i][j]
+                )
 
     return Y_func_l_m
 
@@ -272,7 +287,7 @@ class BesselBasisLayer(torch.nn.Module):
 
 class SiLU(nn.Module):
     def __init__(self):
-        super().__init__() 
+        super().__init__()
 
     def forward(self, input):
         return silu(input)
@@ -294,15 +309,14 @@ class Envelope(torch.nn.Module):
         p, a, b, c = self.p, self.a, self.b, self.c
         x_pow_p0 = x.pow(p)
         x_pow_p1 = x_pow_p0 * x
-        env_val = 1. / x + a * x_pow_p0 + b * x_pow_p1 + c * x_pow_p1 * x
+        env_val = 1.0 / x + a * x_pow_p0 + b * x_pow_p1 + c * x_pow_p1 * x
 
         zero = torch.zeros_like(x)
         return torch.where(x < 1, env_val, zero)
 
 
 class SphericalBasisLayer(torch.nn.Module):
-    def __init__(self, num_spherical, num_radial, cutoff=5.0,
-                 envelope_exponent=5):
+    def __init__(self, num_spherical, num_radial, cutoff=5.0, envelope_exponent=5):
         super(SphericalBasisLayer, self).__init__()
         assert num_radial <= 64
         self.num_spherical = num_spherical
@@ -315,8 +329,8 @@ class SphericalBasisLayer(torch.nn.Module):
         self.sph_funcs = []
         self.bessel_funcs = []
 
-        x, theta = sym.symbols('x theta')
-        modules = {'sin': torch.sin, 'cos': torch.cos}
+        x, theta = sym.symbols("x theta")
+        modules = {"sin": torch.sin, "cos": torch.cos}
         for i in range(num_spherical):
             if i == 0:
                 sph1 = sym.lambdify([theta], sph_harm_forms[i][0], modules)(0)
@@ -340,20 +354,23 @@ class SphericalBasisLayer(torch.nn.Module):
         return out
 
 
+msg_special_args = set(
+    [
+        "edge_index",
+        "edge_index_i",
+        "edge_index_j",
+        "size",
+        "size_i",
+        "size_j",
+    ]
+)
 
-msg_special_args = set([
-    'edge_index',
-    'edge_index_i',
-    'edge_index_j',
-    'size',
-    'size_i',
-    'size_j',
-])
-
-aggr_special_args = set([
-    'index',
-    'dim_size',
-])
+aggr_special_args = set(
+    [
+        "index",
+        "dim_size",
+    ]
+)
 
 update_special_args = set([])
 
@@ -383,14 +400,15 @@ class MessagePassing(torch.nn.Module):
         node_dim (int, optional): The axis along which to propagate.
             (default: :obj:`0`)
     """
-    def __init__(self, aggr='add', flow='target_to_source', node_dim=0):
+
+    def __init__(self, aggr="add", flow="target_to_source", node_dim=0):
         super(MessagePassing, self).__init__()
 
         self.aggr = aggr
-        assert self.aggr in ['add', 'mean', 'max']
+        assert self.aggr in ["add", "mean", "max"]
 
         self.flow = flow
-        assert self.flow in ['source_to_target', 'target_to_source']
+        assert self.flow in ["source_to_target", "target_to_source"]
 
         self.node_dim = node_dim
         assert self.node_dim >= 0
@@ -419,9 +437,12 @@ class MessagePassing(torch.nn.Module):
             size[index] = tensor.size(self.node_dim)
         elif size[index] != tensor.size(self.node_dim):
             raise ValueError(
-                (f'Encountered node tensor with size '
-                 f'{tensor.size(self.node_dim)} in dimension {self.node_dim}, '
-                 f'but expected size {size[index]}.'))
+                (
+                    f"Encountered node tensor with size "
+                    f"{tensor.size(self.node_dim)} in dimension {self.node_dim}, "
+                    f"but expected size {size[index]}."
+                )
+            )
 
     def __collect__(self, edge_index, size, kwargs):
         i, j = (0, 1) if self.flow == "target_to_source" else (1, 0)
@@ -455,16 +476,16 @@ class MessagePassing(torch.nn.Module):
         size[1] = size[0] if size[1] is None else size[1]
 
         # Add special message arguments.
-        out['edge_index'] = edge_index
-        out['edge_index_i'] = edge_index[i]
-        out['edge_index_j'] = edge_index[j]
-        out['size'] = size
-        out['size_i'] = size[i]
-        out['size_j'] = size[j]
+        out["edge_index"] = edge_index
+        out["edge_index_i"] = edge_index[i]
+        out["edge_index_j"] = edge_index[j]
+        out["size"] = size
+        out["size_i"] = size[i]
+        out["size_j"] = size[j]
 
         # Add special aggregate arguments.
-        out['index'] = out['edge_index_i']
-        out['dim_size'] = out['size_i']
+        out["index"] = out["edge_index_i"]
+        out["dim_size"] = out["size_i"]
 
         return out
 
@@ -474,7 +495,7 @@ class MessagePassing(torch.nn.Module):
             data = kwargs[key]
             if data is inspect.Parameter.empty:
                 if param.default is inspect.Parameter.empty:
-                    raise TypeError(f'Required parameter {key} is empty.')
+                    raise TypeError(f"Required parameter {key} is empty.")
                 data = param.default
             out[key] = data
         return out
@@ -536,7 +557,9 @@ class MessagePassing(torch.nn.Module):
         the :obj:`aggr` argument.
         """
 
-        return scatter(inputs, index, dim=self.node_dim, dim_size=dim_size, reduce=self.aggr)
+        return scatter(
+            inputs, index, dim=self.node_dim, dim_size=dim_size, reduce=self.aggr
+        )
 
     def update(self, inputs):  # pragma: no cover
         r"""Updates node embeddings in analogy to
@@ -569,21 +592,21 @@ def save_ckp(state, is_best, checkpoint_path, best_model_path):
 def load_ckp(checkpoint_fpath, model, optimizer, scheduler):
     """
     checkpoint_path: path to save checkpoint
-    model: model that we want to load checkpoint parameters into       
+    model: model that we want to load checkpoint parameters into
     optimizer: optimizer we defined in previous training
     """
     # load check point
     checkpoint = torch.load(checkpoint_fpath)
     # initialize state_dict from checkpoint to model
-    model.load_state_dict(checkpoint['state_dict'])
+    model.load_state_dict(checkpoint["state_dict"])
     # initialize optimizer from checkpoint to optimizer
-    optimizer.load_state_dict(checkpoint['optimizer'])
+    optimizer.load_state_dict(checkpoint["optimizer"])
     # iniialize scheduler
-    scheduler.load_state_dict(checkpoint['scheduler'])
+    scheduler.load_state_dict(checkpoint["scheduler"])
     # initialize valid_loss_min from checkpoint to valid_loss_min
-    valid_loss_min = checkpoint['valid_loss_min']
-    # return model, optimizer, epoch value, min validation loss 
-    return model, optimizer, checkpoint['epoch'], valid_loss_min, scheduler
+    valid_loss_min = checkpoint["valid_loss_min"]
+    # return model, optimizer, epoch value, min validation loss
+    return model, optimizer, checkpoint["epoch"], valid_loss_min, scheduler
 
 
 class DAGNN(torch_geometric.nn.MessagePassing):

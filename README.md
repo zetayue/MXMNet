@@ -1,28 +1,44 @@
-# Molecular Mechanics-Driven Graph Neural Network with Multiplex Graph for Molecular Structures
-
-Code for the Multiplex Molecular Graph Neural Network (MXMNet) proposed in our [paper](https://arxiv.org/abs/2011.07457), which has been accepted by the Machine Learning for Structural Biology Workshop ([MLSB 2020](https://www.mlsb.io/)) and the Machine Learning for Molecules Workshop ([ML4Molecules 2020](https://ml4molecules.github.io/)) at the 34th Conference on Neural Information Processing Systems (NeurIPS 2020).
-
-## Overall Architecture
-
-<p align="center">
-<img src="https://github.com/zetayue/MXMNet/blob/master/MXMNet.png?raw=true">
-</p>
+# Graph Neural Network for Predicting Molecular Properties
+This project evaluates different Graph Neural Network(GNN) architectures for their effectiveness in predicting the Quantum Mechanical properties of chemical molecules.
 
 ## Requirements
-CUDA : 10.1
-Python : 3.7.10
+We use PytorchLightning and PytorchGeometric as development frameworks and Weights & Biases for experiment management. 
 
-The other dependencies can be installed with:
+## Setup
+Install dependencies by running
+ 
+```bash
+sh setup.sh
 ```
-pip install -r requirements.txt
+
+## Run
+To run DAGNN model use the following command
+
+```bash
+python main.py --target=7 --lr=0.0001 --n_layer=2 --dagnn=True
 ```
-## How to Run
-You can directly download, preprocess the QM9 dataset and train the model with 
+
+To run the baseline model
+
+```bash
+python main.py --target=7 --lr=0.0001
 ```
-python main.py
+
+To run the model with Virtual Node
+
+```bash
+python main.py --target=7 --lr=0.0001 --n_layer=6 --virtual_node=True
 ```
+
+To run the model with Auxiliary Layer
+
+```bash
+python main.py --target=7 --lr=0.0001 --n_layer=4 --auxiliary_layer=True
+```
+
 Optional arguments:
-```
+```python
+  --wandb           Enable Weights & Biases to track experiment
   --gpu             GPU number
   --seed            random seed
   --epochs          number of epochs to train
@@ -34,15 +50,9 @@ Optional arguments:
   --target          index of target (0~11) for prediction on QM9
   --cutoff          distance cutoff used in the global layer
 ```
-The default model to be trained is the MXMNet (BS=128, d_g=5) by using '--batch_size=128 --cutoff=5.0'.
 
-## Cite
-If you find this model and code are useful in your work, please cite our paper:
-```
-@inproceedings{zhang2020molecular,
-  title     = {Molecular Mechanics-Driven Graph Neural Network with Multiplex Graph for Molecular Structures},
-  author    = {Zhang, Shuo and Liu, Yang and Xie, Lei},
-  booktitle = {NeurIPS-W},
-  year      = {2020}
-}
-```
+
+## References
+- The base MXMNet Implementation is taken from https://github.com/zetayue/MXMNet
+- Auxiliary Layer implementation is inspired from https://github.com/rasbt/machine-learning-book/blob/main/ch18/ch18_part2.py
+- Virtual Node and DAGNN Layer implementation is taken from https://github.com/divelab/MoleculeX/blob/master/BasicProp/kddcup2021/deeper_dagnn.py

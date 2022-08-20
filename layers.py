@@ -1,12 +1,15 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.data import Data
+from torch_geometric.nn import NNConv
 from torch_geometric.utils import add_self_loops
 from torch_scatter import scatter
 
-from utils import MLP, Res, MessagePassing
+from utils import MLP, MessagePassing, Res
+
 
 class Global_MP(MessagePassing):
-
     def __init__(self, config):
         super(Global_MP, self).__init__()
         self.dim = config.dim
@@ -25,10 +28,10 @@ class Global_MP(MessagePassing):
         edge_index, _ = add_self_loops(edge_index, num_nodes=h.size(0))
 
         res_h = h
-        
+
         # Integrate the Cross Layer Mapping inside the Global Message Passing
         h = self.h_mlp(h)
-        
+
         # Message Passing operation
         h = self.propagate(edge_index, x=h, num_nodes=h.size(0), edge_attr=edge_attr)
 
@@ -37,7 +40,7 @@ class Global_MP(MessagePassing):
         h = self.mlp(h) + res_h
         h = self.res2(h)
         h = self.res3(h)
-        
+
         # Message Passing operation
         h = self.propagate(edge_index, x=h, num_nodes=h.size(0), edge_attr=edge_attr)
 
@@ -86,12 +89,24 @@ class Local_MP(torch.nn.Module):
         self.y_mlp = MLP([self.dim, self.dim, self.dim, self.dim])
         self.y_W = nn.Linear(self.dim, 1)
 
-    def forward(self, h, rbf, sbf1, sbf2, idx_kj, idx_ji_1, idx_jj, idx_ji_2, edge_index, num_nodes=None):
+    def forward(
+        self,
+        h,
+        rbf,
+        sbf1,
+        sbf2,
+        idx_kj,
+        idx_ji_1,
+        idx_jj,
+        idx_ji_2,
+        edge_index,
+        num_nodes=None,
+    ):
         res_h = h
-        
+
         # Integrate the Cross Layer Mapping inside the Local Message Passing
         h = self.h_mlp(h)
-        
+
         # Message Passing 1
         j, i = edge_index
         m = torch.cat([h[i], h[j], rbf], dim=-1)
@@ -99,8 +114,8 @@ class Local_MP(torch.nn.Module):
         m_kj = self.mlp_kj(m)
         m_kj = m_kj * self.lin_rbf1(rbf)
         m_kj = m_kj[idx_kj] * self.mlp_sbf1(sbf1)
-        m_kj = scatter(m_kj, idx_ji_1, dim=0, dim_size=m.size(0), reduce='add')
-        
+        m_kj = scatter(m_kj, idx_ji_1, dim=0, dim_size=m.size(0), reduce="add")
+
         m_ji_1 = self.mlp_ji_1(m)
 
         m = m_ji_1 + m_kj
@@ -109,16 +124,16 @@ class Local_MP(torch.nn.Module):
         m_jj = self.mlp_jj(m)
         m_jj = m_jj * self.lin_rbf2(rbf)
         m_jj = m_jj[idx_jj] * self.mlp_sbf2(sbf2)
-        m_jj = scatter(m_jj, idx_ji_2, dim=0, dim_size=m.size(0), reduce='add')
-        
+        m_jj = scatter(m_jj, idx_ji_2, dim=0, dim_size=m.size(0), reduce="add")
+
         m_ji_2 = self.mlp_ji_2(m)
 
         m = m_ji_2 + m_jj
 
         # Aggregation
         m = self.lin_rbf_out(rbf) * m
-        h = scatter(m, i, dim=0, dim_size=h.size(0), reduce='add')
-        
+        h = scatter(m, i, dim=0, dim_size=h.size(0), reduce="add")
+
         # Update function f_u
         h = self.res1(h)
         h = self.h_mlp(h) + res_h
@@ -130,3 +145,42 @@ class Local_MP(torch.nn.Module):
         y = self.y_W(y)
 
         return h, y
+
+
+# Reference: https://github.com/rasbt/machine-learning-book/blob/main/ch18/ch18_part2.py
+class AuxiliaryLayer(torch.nn.Module):
+    def __init__(self, dim) -> None:
+        super().__init__()
+        num_node_features = 11
+        num_edge_features = 4
+        conv1_net = nn.Sequential(
+            nn.Linear(num_edge_features, dim),
+            nn.ReLU(),
+            nn.Linear(dim, num_node_features * dim),
+        )
+        conv2_net = nn.Sequential(
+            nn.Linear(num_edge_features, dim), nn.ReLU(), nn.Linear(dim, dim * dim)
+        )
+        self.conv1 = NNConv(num_node_features, dim, conv1_net)
+        self.conv2 = NNConv(dim, dim, conv2_net)
+
+    def forward(self, data: Data) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        data
+            Torch Geometric Data object with attributes: batch, x, edge_index, edge_attr
+
+        Returns
+        -------
+        torch.Tensor
+            of dimensions (B, 1)
+        """
+        x, edge_index, edge_attr = (
+            data.x,
+            data.edge_index,
+            data.edge_attr,
+        )
+        x = F.relu(self.conv1(x, edge_index, edge_attr))
+        x = F.relu(self.conv2(x, edge_index, edge_attr))
+        return x
