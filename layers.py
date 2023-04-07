@@ -81,7 +81,7 @@ class Local_MP(torch.nn.Module):
 
         self.lin_rbf_out = nn.Linear(self.dim, self.dim, bias=False)
 
-        self.h_mlp = MLP([self.dim, self.dim])
+        self.mlp = MLP([self.dim, self.dim])
 
         self.y_mlp = MLP([self.dim, self.dim, self.dim, self.dim])
         self.y_W = nn.Linear(self.dim, 1)
@@ -121,7 +121,7 @@ class Local_MP(torch.nn.Module):
         
         # Update function f_u
         h = self.res1(h)
-        h = self.h_mlp(h) + res_h
+        h = self.mlp(h) + res_h
         h = self.res2(h)
         h = self.res3(h)
 
