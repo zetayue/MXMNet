@@ -39,10 +39,10 @@ The default model to be trained is the MXMNet (BS=128, d_g=5) by using '--batch_
 ## Cite
 If you find this model and code are useful in your work, please cite our paper:
 ```
-@inproceedings{zhang2020molecular,
-  title     = {Molecular Mechanics-Driven Graph Neural Network with Multiplex Graph for Molecular Structures},
-  author    = {Zhang, Shuo and Liu, Yang and Xie, Lei},
-  booktitle = {NeurIPS-W},
-  year      = {2020}
+@article{zhang2020molecular,
+  title={Molecular mechanics-driven graph neural network with multiplex graph for molecular structures},
+  author={Zhang, Shuo and Liu, Yang and Xie, Lei},
+  journal={arXiv preprint arXiv:2011.07457},
+  year={2020}
 }
 ```
