@@ -2,12 +2,8 @@
 
 Code for **MXMNet** proposed in our paper: **[Molecular Mechanics-Driven Graph Neural Network with Multiplex Graph for Molecular Structures](https://arxiv.org/abs/2011.07457)**, which has been accepted by the *Machine Learning for Structural Biology Workshop* ([MLSB 2020](https://www.mlsb.io/)) and the *Machine Learning for Molecules Workshop* ([ML4Molecules 2020](https://ml4molecules.github.io/)) at the *34th Conference on Neural Information Processing Systems* (NeurIPS 2020).
 
-### Important Update (2023/11)
-We have released the **[code](https://github.com/XieResearchGroup/Physics-aware-Multiplex-GNN)** for **PAMNet**, which is an improved version of MXMNet with **higher accuracy and efficiency**. We highly recommend anyone interested in MXMNet try our PAMNet:
-
-**[A universal framework for accurate and efficient geometric deep learning of molecular systems](https://www.nature.com/articles/s41598-023-46382-8)**   
-Shuo Zhang, Yang Liu, Lei Xie    
-Published at *Scientific Reports*
+### Important Update about Improved Model (2023/11)
+We have released the **[code](https://github.com/XieResearchGroup/Physics-aware-Multiplex-GNN)** for **PAMNet** in our *Nature Scientific Reports* paper "**[A universal framework for accurate and efficient geometric deep learning of molecular systems](https://www.nature.com/articles/s41598-023-46382-8)**", which is an improved version of MXMNet with **higher accuracy and efficiency**. **We highly recommend anyone interested in MXMNet try our PAMNet**.
 
 ## Overall Architecture
 
